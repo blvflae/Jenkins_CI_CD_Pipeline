@@ -1,0 +1,50 @@
+pipeline {
+    agent any
+    parameters {
+        string(name: 'BUILD_NUMBER', defaultValue: '', description: 'CI build number to deploy (example: 5)')
+        choice(name: 'ENVIRONMENT', choices: ['DEV', 'TEST', 'ACC', 'PROD'], description: 'Deployment target')
+    }
+    environment {
+        CI_BUILD   = "${params.BUILD_NUMBER}"
+        ENV_NAME   = "${params.ENVIRONMENT.toLowerCase()}"
+        IMAGE_NAME = "react-app-${params.ENVIRONMENT.toLowerCase()}"
+    }
+    stages {
+        stage('Download Artifact') {
+            steps {
+                script {
+                    if (!params.BUILD_NUMBER?.trim()) {
+                        error('BUILD_NUMBER is required')
+                    }
+                }
+                copyArtifacts(
+                    projectName: 'CI-React-App',
+                    selector: specific(params.BUILD_NUMBER),
+                    filter: "react-app-${params.BUILD_NUMBER}.tar.gz"
+                )
+            }
+        }
+        stage('Prepare Files') {
+            steps {
+                sh 'rm -rf deploy && mkdir deploy'
+                sh 'tar -xzf react-app-$CI_BUILD.tar.gz -C deploy'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME:$CI_BUILD deploy'
+            }
+        }
+        stage('Deploy to Docker') {
+            steps {
+                script {
+                    def ports = [DEV: '8101', TEST: '8102', ACC: '8103', PROD: '8104']
+                    env.HOST_PORT = ports[params.ENVIRONMENT]
+                }
+                sh 'docker rm -f $IMAGE_NAME || true'
+                sh 'docker run -d --name $IMAGE_NAME -p $HOST_PORT:80 $IMAGE_NAME:$CI_BUILD'
+                echo "Deployed ${params.ENVIRONMENT} build ${params.BUILD_NUMBER} at http://localhost:${env.HOST_PORT}"
+            }
+        }
+    }
+}
