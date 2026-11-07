@@ -5,9 +5,9 @@ pipeline {
         choice(name: 'ENVIRONMENT', choices: ['DEV', 'TEST', 'ACC', 'PROD'], description: 'Deployment target')
     }
     environment {
-        CI_BUILD   = "${params.BUILD_NUMBER}"
-        ENV_NAME   = "${params.ENVIRONMENT.toLowerCase()}"
-        IMAGE_NAME = "react-app-${params.ENVIRONMENT.toLowerCase()}"
+        CI_BUILD   = "${params.BUILD_NUMBER.trim()}"
+        ENV_NAME   = "${params.ENVIRONMENT.trim().toLowerCase()}"
+        IMAGE_NAME = "react-app-${params.ENVIRONMENT.trim().toLowerCase()}"
     }
     stages {
         stage('Download Artifact') {
@@ -20,7 +20,7 @@ pipeline {
                 copyArtifacts(
                     projectName: 'CI-React-App',
                     selector: specific(params.BUILD_NUMBER),
-                    filter: "react-app-${params.BUILD_NUMBER}.tar.gz"
+                    filter: "react-app-${params.BUILD_NUMBER.trim()}.tar.gz"
                 )
             }
         }
@@ -39,12 +39,13 @@ pipeline {
             steps {
                 script {
                     def ports = [DEV: '8101', TEST: '8102', ACC: '8103', PROD: '8104']
-                    env.HOST_PORT = ports[params.ENVIRONMENT]
+                    env.HOST_PORT = ports[params.ENVIRONMENT.trim()]
                 }
                 sh 'docker rm -f $IMAGE_NAME || true'
                 sh 'docker run -d --name $IMAGE_NAME -p $HOST_PORT:80 $IMAGE_NAME:$CI_BUILD'
-                echo "Deployed ${params.ENVIRONMENT} build ${params.BUILD_NUMBER} at http://localhost:${env.HOST_PORT}"
+                echo "Deployed ${params.ENVIRONMENT} build ${params.BUILD_NUMBER.trim()} at http://localhost:${env.HOST_PORT}"
             }
         }
     }
 }
+
